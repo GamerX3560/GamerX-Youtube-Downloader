@@ -1,0 +1,39 @@
+# Built artifacts
+/build/
+/app/build/
+*.apk
+*.aab
+*.ap_
+
+# Gradle
+.gradle/
+.kotlin/
+local.properties
+gradle.properties.bak
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Build logs (dev only)
+build_log*.txt
+
+# Signing keys
+*.jks
+*.keystore
+release.properties
+
+# Crash reports
+crash-*.txt
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Room schema exports (optional — keep if you want migration tracking)
+# /app/schemas/

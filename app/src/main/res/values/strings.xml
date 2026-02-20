@@ -1,0 +1,33 @@
+<resources>
+    <string name="app_name">GamerX Downloader</string>
+    <string name="home">Home</string>
+    <string name="downloads">Downloads</string>
+    <string name="more">More</string>
+    <string name="paste_url">Paste a video URL</string>
+    <string name="download">Download</string>
+    <string name="cancel">Cancel</string>
+    <string name="retry">Retry</string>
+    <string name="delete">Delete</string>
+    <string name="pause">Pause</string>
+    <string name="resume">Resume</string>
+    <string name="active">Active</string>
+    <string name="queued">Queued</string>
+    <string name="completed">Completed</string>
+    <string name="cancelled">Cancelled</string>
+    <string name="errored">Errored</string>
+    <string name="audio">Audio</string>
+    <string name="video">Video</string>
+    <string name="command">Command</string>
+    <string name="format_selection">Format Selection</string>
+    <string name="download_path">Download Path</string>
+    <string name="filename">Filename</string>
+    <string name="no_downloads">No downloads yet</string>
+    <string name="fetching_info">Fetching video info…</string>
+    <string name="download_started">Download started</string>
+    <string name="download_completed">Download completed</string>
+    <string name="download_failed">Download failed</string>
+    <string name="notification_channel_downloads">Downloads</string>
+    <string name="notification_channel_desc">Download progress notifications</string>
+    <string name="best_quality">Best Quality</string>
+    <string name="select_format">Select Format</string>
+</resources>

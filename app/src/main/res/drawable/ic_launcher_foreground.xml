@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Background circle -->
+    <path
+        android:fillColor="#0A0A0F"
+        android:pathData="M0,0h108v108H0z"/>
+
+    <!-- Gradient rectangle accent -->
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M24,38L48,38A6,6 0,0 1,54 44L54,64A6,6 0,0 1,48 70L24,70A6,6 0,0 1,18 64L18,44A6,6 0,0 1,24 38z"/>
+
+    <!-- Download arrow -->
+    <path
+        android:fillColor="#0A0A0F"
+        android:pathData="M33,48l0,10l-4,0l7,7l7,-7l-4,0l0,-10z"/>
+
+    <!-- GX text hint -->
+    <path
+        android:fillColor="#B388FF"
+        android:pathData="M62,44L62,68L70,68L78,56L86,68L94,68L82,50.5L92,36L84,36L78,45L72,36L64,36L74,50.5z"/>
+</vector>
