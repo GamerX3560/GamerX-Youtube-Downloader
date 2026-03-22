@@ -51,7 +51,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -65,6 +67,16 @@ data class ShareUiState(
     val selectedType: DownloadType = DownloadType.Video,
     val selectedFormat: FormatInfo? = null,  // null = "Best" auto-selection
     val selectedContainer: String = "",      // mp4, mkv, webm, mp3, m4a, opus
+    val showFormatDialog: Boolean = false,
+    val showContainerMenu: Boolean = false,
+    val chaptersEnabled: Boolean = false,
+    val subtitlesEnabled: Boolean = false,
+    val thumbnailEnabled: Boolean = false,
+    val sponsorBlockEnabled: Boolean = false,
+    val saveDir: String = "",
+    val freeSpace: String = "",
+    val editedTitle: String = "",
+    val editedAuthor: String = "",
 )
 
 // ── ViewModel ──
@@ -81,6 +93,35 @@ class ShareViewModel @Inject constructor(
     val uiState: StateFlow<ShareUiState> = _uiState.asStateFlow()
 
     private var currentUrl: String? = null
+
+    init {
+        viewModelScope.launch {
+            kotlinx.coroutines.flow.combine(
+                _uiState.map { it.selectedType },
+                settingsRepo.downloadDir,
+                settingsRepo.audioDir
+            ) { type, videoDir, audioDir ->
+                val dir = if (type == DownloadType.Video) videoDir else audioDir
+                val free = getFreeSpace(dir)
+                dir to free
+            }.collect { (dir, free) ->
+                _uiState.value = _uiState.value.copy(saveDir = dir, freeSpace = free)
+            }
+        }
+    }
+
+    private fun getFreeSpace(path: String): String {
+        return try {
+            val stat = android.os.StatFs(path)
+            val bytesAvailable = stat.availableBlocksLong * stat.blockSizeLong
+            when {
+                bytesAvailable >= 1024L * 1024L * 1024L -> String.format("%.1f GB", bytesAvailable / (1024f * 1024f * 1024f))
+                else -> String.format("%.1f MB", bytesAvailable / (1024f * 1024f))
+            }
+        } catch (e: Exception) {
+            "Unknown"
+        }
+    }
 
     fun handleIntent(intent: Intent) {
         if (currentUrl != null) return
@@ -114,6 +155,8 @@ class ShareViewModel @Inject constructor(
                         isLoading = false,
                         videoInfo = info,
                         selectedContainer = "mp4",
+                        editedTitle = info.title,
+                        editedAuthor = info.author,
                     )
                 },
                 onFailure = { error ->
@@ -139,6 +182,27 @@ class ShareViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(selectedContainer = container)
     }
 
+    fun toggleFlag(flag: String) {
+        val s = _uiState.value
+        _uiState.value = when(flag) {
+            "formatDialog" -> s.copy(showFormatDialog = !s.showFormatDialog)
+            "containerMenu" -> s.copy(showContainerMenu = !s.showContainerMenu)
+            "chapters" -> s.copy(chaptersEnabled = !s.chaptersEnabled)
+            "subtitles" -> s.copy(subtitlesEnabled = !s.subtitlesEnabled)
+            "thumbnail" -> s.copy(thumbnailEnabled = !s.thumbnailEnabled)
+            "sponsorblock" -> s.copy(sponsorBlockEnabled = !s.sponsorBlockEnabled)
+            else -> s
+        }
+    }
+
+    fun setEditedTitle(t: String) {
+        _uiState.value = _uiState.value.copy(editedTitle = t)
+    }
+
+    fun setEditedAuthor(a: String) {
+        _uiState.value = _uiState.value.copy(editedAuthor = a)
+    }
+
     fun startDownload() {
         val info = _uiState.value.videoInfo ?: return
         val url = currentUrl ?: return
@@ -153,9 +217,36 @@ class ShareViewModel @Inject constructor(
             val filenameTpl = settingsRepo.filenameTemplate.first()
             val saveThumb = settingsRepo.saveThumbnail.first()
 
-            val targetFormat = _uiState.value.selectedFormat ?: FormatInfo()
+            var targetFormat = _uiState.value.selectedFormat ?: FormatInfo()
             val container = _uiState.value.selectedContainer.ifBlank {
                 if (type == DownloadType.Audio) "mp3" else "mp4"
+            }
+
+            var extraCommands = ""
+            if (type == DownloadType.Video) {
+                // Determine best audio formats for all languages available
+                val bestAudioIds = info.audioFormats
+                    .groupBy { it.language.ifBlank { "und" } }
+                    .map { (_, formats) -> formats.maxByOrNull { it.tbr }?.formatId }
+                    .filterNotNull()
+                
+                if (bestAudioIds.isNotEmpty()) {
+                    val audioIdsStr = bestAudioIds.joinToString("+")
+                    val videoId = if (targetFormat.formatId.isNotBlank()) targetFormat.formatId else "bestvideo*"
+                    
+                    targetFormat = targetFormat.copy(formatId = "$videoId+$audioIdsStr/best")
+                    extraCommands = "--audio-multistreams"
+                }
+            }
+            
+            val flags = mutableListOf<String>()
+            if (_uiState.value.thumbnailEnabled) flags.add("--write-thumbnail")
+            if (_uiState.value.chaptersEnabled) flags.add("--embed-chapters")
+            if (_uiState.value.subtitlesEnabled) flags.add("--write-subs --embed-subs")
+            if (_uiState.value.sponsorBlockEnabled) flags.add("--sponsorblock-mark all")
+            
+            if (flags.isNotEmpty()) {
+                extraCommands = (extraCommands + " " + flags.joinToString(" ")).trim()
             }
 
             val download = DownloadEntity(
@@ -171,6 +262,7 @@ class ShareViewModel @Inject constructor(
                 status = com.gamerx.downloader.data.model.DownloadStatus.Queued,
                 website = info.website.ifBlank { "Web" },
                 saveThumbnail = saveThumb,
+                extraCommands = extraCommands,
             )
 
             val id = repository.insert(download)
@@ -235,6 +327,9 @@ class ShareActivity : ComponentActivity() {
                         onTypeChange = { viewModel.setSelectedType(it) },
                         onFormatChange = { viewModel.setSelectedFormat(it) },
                         onContainerChange = { viewModel.setSelectedContainer(it) },
+                        onToggleFlag = { viewModel.toggleFlag(it) },
+                        onTitleChange = { viewModel.setEditedTitle(it) },
+                        onAuthorChange = { viewModel.setEditedAuthor(it) },
                         onDownload = { viewModel.startDownload() },
                     )
                 }
@@ -311,6 +406,9 @@ fun ShareContent(
     onTypeChange: (DownloadType) -> Unit,
     onFormatChange: (FormatInfo?) -> Unit,
     onContainerChange: (String) -> Unit,
+    onToggleFlag: (String) -> Unit,
+    onTitleChange: (String) -> Unit,
+    onAuthorChange: (String) -> Unit,
     onDownload: () -> Unit,
 ) {
     Card(
@@ -323,7 +421,18 @@ fun ShareContent(
         elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
+                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.05f)
+                        ),
+                        start = Offset(0f, 0f),
+                        end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
+                    )
+                )
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // Drag handle
@@ -373,273 +482,367 @@ fun ShareContent(
                 state.videoInfo != null -> {
                     val info = state.videoInfo
 
-                    // ── Thumbnail + Title + Duration ──
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                        Box {
-                            AsyncImage(
-                                model = info.thumbnail,
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .width(120.dp)
-                                    .height(68.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                                contentScale = ContentScale.Crop,
-                            )
-                            if (info.durationText.isNotBlank()) {
-                                Surface(
-                                    modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp),
-                                    shape = RoundedCornerShape(4.dp),
-                                    color = Color.Black.copy(alpha = 0.7f),
-                                ) {
-                                    Text(
-                                        text = info.durationText,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = Color.White,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                                        fontSize = 10.sp,
-                                    )
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = info.title,
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                fontWeight = FontWeight.SemiBold,
-                                lineHeight = 18.sp,
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = info.author,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            if (info.website.isNotBlank()) {
-                                Text(
-                                    text = info.website,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // ── Type Tabs (Video / Audio) ──
-                    val types = listOf(DownloadType.Video, DownloadType.Audio)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                    ) {
-                        types.forEach { type ->
-                            val selected = type == state.selectedType
-                            val formatCount = if (type == DownloadType.Video) info.videoFormats.size else info.audioFormats.size
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(
-                                        if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                                        else Color.Transparent
-                                    )
-                                    .clickable { onTypeChange(type) }
-                                    .padding(vertical = 10.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        if (type == DownloadType.Video) Icons.Outlined.Videocam
-                                        else Icons.Outlined.MusicNote,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp),
-                                        tint = if (selected) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = type.name,
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (selected) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    if (formatCount > 0) {
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Surface(
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                                            else MaterialTheme.colorScheme.surfaceVariant,
-                                        ) {
-                                            Text(
-                                                text = "$formatCount",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
-                                                color = if (selected) MaterialTheme.colorScheme.primary
-                                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                fontSize = 10.sp,
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // ── Container Selector ──
-                    val containers = if (state.selectedType == DownloadType.Video) {
-                        listOf("mp4", "mkv", "webm")
-                    } else {
-                        listOf("mp3", "m4a", "opus", "wav")
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Text(
-                            text = "Format:",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.align(Alignment.CenterVertically),
-                        )
-                        containers.forEach { container ->
-                            val selected = container == state.selectedContainer
-                            FilterChip(
-                                selected = selected,
-                                onClick = { onContainerChange(container) },
-                                label = {
-                                    Text(
-                                        text = container.uppercase(),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                    )
-                                },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                    selectedLabelColor = MaterialTheme.colorScheme.primary,
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                ),
-                                border = FilterChipDefaults.filterChipBorder(
-                                    borderColor = Color.Transparent,
-                                    selectedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                                    enabled = true,
-                                    selected = selected,
-                                ),
-                                modifier = Modifier.height(30.dp),
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // ── Format Selection List ──
-                    val formats = if (state.selectedType == DownloadType.Video) {
-                        info.videoFormats.sortedByDescending { 
-                            it.resolution.substringBefore("x", "0").toIntOrNull() ?: it.tbr.toInt()
-                        }
-                    } else {
-                        info.audioFormats.sortedByDescending { it.tbr }
-                    }
-
-                    // "Best" auto option + real formats
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 240.dp)
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState())
                     ) {
-                        // Best auto option
-                        FormatRow(
-                            label = "Best Quality (Auto)",
-                            detail = "yt-dlp selects optimal format",
-                            size = "",
-                            isSelected = state.selectedFormat == null,
-                            onClick = { onFormatChange(null) },
-                        )
-
-                        if (formats.isNotEmpty()) {
-                            HorizontalDivider(
-                                modifier = Modifier.padding(vertical = 2.dp),
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-                            )
-
-                            LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                                items(formats) { format ->
-                                    val label = if (state.selectedType == DownloadType.Video) {
-                                        buildString {
-                                            if (format.resolution.isNotBlank()) append(format.resolution)
-                                            else if (format.formatNote.isNotBlank()) append(format.formatNote)
-                                            if (format.fps > 0) append(" • ${format.fps.toInt()}fps")
-                                        }
-                                    } else {
-                                        buildString {
-                                            if (format.formatNote.isNotBlank()) append(format.formatNote)
-                                            else if (format.tbr > 0) append("${format.tbr.toInt()}kbps")
-                                            if (format.asr > 0) append(" • ${format.asr}Hz")
-                                        }
-                                    }
-                                    val detail = buildString {
-                                        if (format.ext.isNotBlank()) append(format.ext.uppercase())
-                                        val codec = if (state.selectedType == DownloadType.Video) format.vcodec else format.acodec
-                                        if (codec.isNotBlank() && codec != "none") append(" • $codec")
-                                        if (format.language.isNotBlank() && format.language != "und") append(" • ${format.language}")
-                                    }
-                                    FormatRow(
-                                        label = label.ifBlank { format.formatId },
-                                        detail = detail,
-                                        size = format.displaySize,
-                                        isSelected = format == state.selectedFormat,
-                                        onClick = { onFormatChange(format) },
+                        // ── Top Header (YTDLnis exactly) ──
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Download",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 22.sp
+                                )
+                                Text(
+                                    text = "Adjust download",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.AccessTime, 
+                                        contentDescription = "History",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(10.dp)
                                     )
                                 }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Button(
+                                    onClick = onDownload,
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                    shape = RoundedCornerShape(20.dp),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(40.dp)
+                                ) {
+                                    Icon(Icons.Outlined.Download, contentDescription=null, modifier = Modifier.size(16.dp), tint=MaterialTheme.colorScheme.onSurface)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Download", color = MaterialTheme.colorScheme.onSurface)
+                                }
                             }
-                        } else {
-                            // No formats detected — show fallback message
-                            Text(
-                                text = "No individual formats detected. \"Best\" will be used.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(vertical = 8.dp),
-                            )
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(24.dp))
 
-                    // ── Download Button ──
-                    Button(
-                        onClick = onDownload,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                        ),
-                        shape = RoundedCornerShape(14.dp),
-                    ) {
-                        Icon(
-                            Icons.Outlined.Download,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
+                        // ── Tabs ──
+                        val types = listOf(DownloadType.Audio, DownloadType.Video)
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            types.forEach { type ->
+                                val selected = type == state.selectedType
+                                Column(
+                                    modifier = Modifier
+                                        .clickable { onTypeChange(type) }
+                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = type.name,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                    if (selected) {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .width(20.dp)
+                                                .height(3.dp)
+                                                .clip(RoundedCornerShape(1.5.dp))
+                                                .background(MaterialTheme.colorScheme.primary)
+                                        )
+                                    }
+                                }
+                            }
+                            // Stub for Command tab
+                            Column(
+                                modifier = Modifier
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "Command",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.5f),
+                                )
+                            }
+                        }
+                        
+                        HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant, thickness = 1.dp)
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // ── Title & Author Boxes ──
+                        OutlinedTextField(
+                            value = state.editedTitle,
+                            onValueChange = onTitleChange,
+                            label = { Text("Title") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant,
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                            ),
+                            shape = RoundedCornerShape(8.dp),
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedTextField(
+                                value = state.editedAuthor,
+                                onValueChange = onAuthorChange,
+                                label = { Text("Author") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                            )
+
+                            // Container Dropdown
+                            Box(modifier = Modifier.weight(1f)) {
+                                val containers = if (state.selectedType == DownloadType.Video) {
+                                    listOf("mp4", "mkv", "webm")
+                                } else {
+                                    listOf("mp3", "m4a", "opus", "wav")
+                                }
+                                OutlinedTextField(
+                                    value = state.selectedContainer.ifBlank { "Default" },
+                                    onValueChange = {},
+                                    label = { Text("Container") },
+                                    readOnly = true,
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth().clickable { onToggleFlag("containerMenu") },
+                                    trailingIcon = {
+                                        Icon(Icons.Outlined.ArrowDropDown, contentDescription=null, modifier = Modifier.clickable { onToggleFlag("containerMenu") })
+                                    },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                        unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                )
+                                DropdownMenu(
+                                    expanded = state.showContainerMenu,
+                                    onDismissRequest = { onToggleFlag("containerMenu") },
+                                ) {
+                                    containers.forEach { c ->
+                                        DropdownMenuItem(
+                                            text = { Text(c.uppercase()) },
+                                            onClick = {
+                                                onContainerChange(c)
+                                                onToggleFlag("containerMenu")
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // ── Video Quality ──
                         Text(
-                            text = if (state.selectedType == DownloadType.Video) "Download Video" else "Download Audio",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
+                            text = if (state.selectedType == DownloadType.Video) "Video quality" else "Audio quality",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+
+                            fontSize = 14.sp
                         )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        // Format display button (opens dialog)
+                        FormatRow(
+                            format = state.selectedFormat,
+                            isSelected = true,
+                            onClick = { onToggleFlag("formatDialog") }
+                        )
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // ── Save Dir ──
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text("Save dir", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(state.saveDir, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.fillMaxWidth())
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Free space: ${state.freeSpace}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        )
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // ── Adjust Video Feature Grid ──
+                        Text(
+                            text = "Adjust video",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+
+                            fontSize = 14.sp
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Row 1
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            GridToggleButton("Thumbnail", Icons.Outlined.Image, state.thumbnailEnabled, onClick = { onToggleFlag("thumbnail") }, modifier = Modifier.weight(1f))
+                            GridToggleButton("Chapters", Icons.Outlined.MenuBook, state.chaptersEnabled, onClick = { onToggleFlag("chapters") }, badge = "1", modifier = Modifier.weight(1f))
+                            GridToggleButton("Subtitles", Icons.Outlined.Subtitles, state.subtitlesEnabled, onClick = { onToggleFlag("subtitles") }, badge = "1", modifier = Modifier.weight(1f))
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        // Row 2
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            GridToggleButton("Audio", Icons.Outlined.MusicNote, false, onClick = { }, modifier = Modifier.weight(1f))
+                            GridToggleButton("Recode video", Icons.Outlined.SettingsApplications, false, onClick = { }, modifier = Modifier.weight(1f))
+                            GridToggleButton("Live stream", Icons.Outlined.LiveTv, false, onClick = { }, modifier = Modifier.weight(1f))
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        // Row 3
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            GridToggleButton("SponsorBlock", Icons.Outlined.AttachMoney, state.sponsorBlockEnabled, onClick = { onToggleFlag("sponsorblock") }, badge = "1", modifier = Modifier.weight(1.2f))
+                            GridToggleButton("Filename template", Icons.Outlined.Edit, false, onClick = { }, modifier = Modifier.weight(2f))
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
                     }
+                }
+            }
+
+            // ── Interactive Format Selection Dialog ──
+            if (state.showFormatDialog && state.videoInfo != null) {
+                val formats = if (state.selectedType == DownloadType.Video) {
+                    state.videoInfo.videoFormats
+                        .groupBy { "${it.resolution}-${it.fps.toInt()}-${it.ext}" }
+                        .map { (_, formatsInGroup) -> formatsInGroup.maxByOrNull { it.tbr } ?: formatsInGroup.first() }
+                        .sortedByDescending { it.resolution.substringBefore("x", "0").toIntOrNull() ?: it.tbr.toInt() }
+                } else {
+                    state.videoInfo.audioFormats.sortedByDescending { it.tbr }
+                }
+
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { onToggleFlag("formatDialog") },
+                    title = {
+                        Text("Format Selection", style = MaterialTheme.typography.titleMedium)
+                    },
+                    text = {
+                        LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                            item {
+                                FormatRow(
+                                    format = null,
+                                    isSelected = state.selectedFormat == null,
+                                    onClick = {
+                                        onFormatChange(null)
+                                        onToggleFlag("formatDialog")
+                                    }
+                                )
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+                            }
+                            items(formats) { format ->
+                                FormatRow(
+                                    format = format,
+                                    isSelected = format == state.selectedFormat,
+                                    onClick = {
+                                        onFormatChange(format)
+                                        onToggleFlag("formatDialog")
+                                    }
+                                )
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { onToggleFlag("formatDialog") }) {
+                            Text("OK")
+                        }
+                    },
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    textContentColor = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+    }
+}
+
+// ── Shared UI Grid Items ──
+
+@Composable
+fun GridToggleButton(
+    text: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    isEnabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    badge: String? = null
+) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = if (isEnabled) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant,
+        modifier = modifier.clickable(onClick = onClick)
+    ) {
+        Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 10.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = if (isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = if (isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 12.sp
+                )
+            }
+            if (badge != null) {
+                Surface(
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                    color = MaterialTheme.colorScheme.background,
+                    modifier = Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-8).dp)
+                ) {
+                    Text(
+                        text = badge,
+                        fontSize = 8.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
                 }
             }
         }
@@ -650,9 +853,7 @@ fun ShareContent(
 
 @Composable
 fun FormatRow(
-    label: String,
-    detail: String,
-    size: String,
+    format: FormatInfo?,
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
@@ -661,14 +862,12 @@ fun FormatRow(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
-        color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-        else Color.Transparent,
+        color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Selection indicator
             RadioButton(
                 selected = isSelected,
                 onClick = onClick,
@@ -678,34 +877,140 @@ fun FormatRow(
                     unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 ),
             )
-            Spacer(modifier = Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (isSelected) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurface,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (detail.isNotBlank()) {
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            if (format == null) {
+                // Auto format
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = detail,
-                        style = MaterialTheme.typography.labelSmall,
+                        text = "Best Quality (Auto)",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = "yt-dlp selects optimal format",
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
                 }
-            }
-            if (size.isNotBlank() && size != "Unknown") {
-                Text(
-                    text = size,
-                    style = MaterialTheme.typography.labelMedium,
+            } else {
+                // Codec/Ext badge on the left (like YTDLnis solid blue badge)
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
                     color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold,
-                )
+                ) {
+                    Text(
+                        text = format.ext.uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                
+                Spacer(modifier = Modifier.width(12.dp))
+                
+                Column(modifier = Modifier.weight(1f)) {
+                    // Title row — YTDLnis style: "1080P60 (1920X1080)"
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val title = buildString {
+                            // Convert "1920x1080" -> height "1080", append P and fps
+                            val res = format.resolution
+                            val height = res.substringAfter("x", "").ifBlank { res.filter { it.isDigit() } }
+                            if (height.isNotBlank()) {
+                                append("${height}P")
+                                if (format.fps > 0) append("${format.fps.toInt()}")
+                                append(" (${res.uppercase()})")
+                            } else if (format.formatNote.isNotBlank()) {
+                                append(format.formatNote)
+                            } else {
+                                append("Audio")
+                            }
+                        }
+                        
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        
+                        Spacer(modifier = Modifier.width(8.dp))
+                        
+                        Text(
+                            text = "id: ${format.formatId}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(6.dp))
+                    
+                    // Detail pills row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Audio pill
+                        if (!format.isAudioOnly && !format.isVideoOnly) {
+                             Surface(
+                                 shape = RoundedCornerShape(4.dp),
+                                 color = MaterialTheme.colorScheme.primary.copy(alpha=0.15f)
+                             ) {
+                                 Row(modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                     Icon(Icons.Outlined.MusicNote, contentDescription=null, modifier = Modifier.size(12.dp), tint=MaterialTheme.colorScheme.primary)
+                                     Spacer(modifier = Modifier.width(2.dp))
+                                     Text(if (format.acodec != "none") format.acodec else "audio", style = MaterialTheme.typography.bodySmall, fontSize = 9.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                                 }
+                             }
+                        }
+                        
+                        // Video codec pill
+                        val codec = if (format.isAudioOnly || format.vcodec == "none") format.acodec else format.vcodec
+                        if (codec.isNotBlank() && codec != "none") {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant
+                            ) {
+                                Text(
+                                    text = codec,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontSize = 9.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.weight(1f))
+                        
+                        // Size pill
+                        if (format.displaySize.isNotBlank() && format.displaySize != "Unknown") {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = MaterialTheme.colorScheme.secondary.copy(alpha=0.2f)
+                            ) {
+                                Text(
+                                    text = format.displaySize,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }

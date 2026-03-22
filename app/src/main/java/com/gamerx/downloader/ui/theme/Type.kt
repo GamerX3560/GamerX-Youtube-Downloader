@@ -15,28 +15,28 @@ val provider = GoogleFont.Provider(
     certificates = R.array.com_google_android_gms_fonts_certs
 )
 
-val outfitFont = GoogleFont("Outfit")
-val interFont = GoogleFont("Inter")
+val spaceGroteskFont = GoogleFont("Space Grotesk")
+val manropeFont = GoogleFont("Manrope")
 
-val OutfitFamily = FontFamily(
-    Font(googleFont = outfitFont, fontProvider = provider, weight = FontWeight.Light),
-    Font(googleFont = outfitFont, fontProvider = provider, weight = FontWeight.Normal),
-    Font(googleFont = outfitFont, fontProvider = provider, weight = FontWeight.Medium),
-    Font(googleFont = outfitFont, fontProvider = provider, weight = FontWeight.SemiBold),
-    Font(googleFont = outfitFont, fontProvider = provider, weight = FontWeight.Bold),
+val SpaceGroteskFamily = FontFamily(
+    Font(googleFont = spaceGroteskFont, fontProvider = provider, weight = FontWeight.Light),
+    Font(googleFont = spaceGroteskFont, fontProvider = provider, weight = FontWeight.Normal),
+    Font(googleFont = spaceGroteskFont, fontProvider = provider, weight = FontWeight.Medium),
+    Font(googleFont = spaceGroteskFont, fontProvider = provider, weight = FontWeight.SemiBold),
+    Font(googleFont = spaceGroteskFont, fontProvider = provider, weight = FontWeight.Bold),
 )
 
-val InterFamily = FontFamily(
-    Font(googleFont = interFont, fontProvider = provider, weight = FontWeight.Light),
-    Font(googleFont = interFont, fontProvider = provider, weight = FontWeight.Normal),
-    Font(googleFont = interFont, fontProvider = provider, weight = FontWeight.Medium),
-    Font(googleFont = interFont, fontProvider = provider, weight = FontWeight.SemiBold),
-    Font(googleFont = interFont, fontProvider = provider, weight = FontWeight.Bold),
+val ManropeFamily = FontFamily(
+    Font(googleFont = manropeFont, fontProvider = provider, weight = FontWeight.Light),
+    Font(googleFont = manropeFont, fontProvider = provider, weight = FontWeight.Normal),
+    Font(googleFont = manropeFont, fontProvider = provider, weight = FontWeight.Medium),
+    Font(googleFont = manropeFont, fontProvider = provider, weight = FontWeight.SemiBold),
+    Font(googleFont = manropeFont, fontProvider = provider, weight = FontWeight.Bold),
 )
 
 val GamerXTypography = Typography(
     displayLarge = TextStyle(
-        fontFamily = OutfitFamily,
+        fontFamily = SpaceGroteskFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 57.sp,
         lineHeight = 64.sp,
@@ -44,49 +44,49 @@ val GamerXTypography = Typography(
         color = TextPrimary,
     ),
     displayMedium = TextStyle(
-        fontFamily = OutfitFamily,
+        fontFamily = SpaceGroteskFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 45.sp,
         lineHeight = 52.sp,
         color = TextPrimary,
     ),
     displaySmall = TextStyle(
-        fontFamily = OutfitFamily,
+        fontFamily = SpaceGroteskFamily,
         fontWeight = FontWeight.SemiBold,
         fontSize = 36.sp,
         lineHeight = 44.sp,
         color = TextPrimary,
     ),
     headlineLarge = TextStyle(
-        fontFamily = OutfitFamily,
+        fontFamily = SpaceGroteskFamily,
         fontWeight = FontWeight.SemiBold,
         fontSize = 32.sp,
         lineHeight = 40.sp,
         color = TextPrimary,
     ),
     headlineMedium = TextStyle(
-        fontFamily = OutfitFamily,
+        fontFamily = SpaceGroteskFamily,
         fontWeight = FontWeight.SemiBold,
         fontSize = 28.sp,
         lineHeight = 36.sp,
         color = TextPrimary,
     ),
     headlineSmall = TextStyle(
-        fontFamily = OutfitFamily,
+        fontFamily = SpaceGroteskFamily,
         fontWeight = FontWeight.SemiBold,
         fontSize = 24.sp,
         lineHeight = 32.sp,
         color = TextPrimary,
     ),
     titleLarge = TextStyle(
-        fontFamily = OutfitFamily,
+        fontFamily = SpaceGroteskFamily,
         fontWeight = FontWeight.Medium,
         fontSize = 22.sp,
         lineHeight = 28.sp,
         color = TextPrimary,
     ),
     titleMedium = TextStyle(
-        fontFamily = InterFamily,
+        fontFamily = ManropeFamily,
         fontWeight = FontWeight.Medium,
         fontSize = 16.sp,
         lineHeight = 24.sp,
@@ -94,7 +94,7 @@ val GamerXTypography = Typography(
         color = TextPrimary,
     ),
     titleSmall = TextStyle(
-        fontFamily = InterFamily,
+        fontFamily = ManropeFamily,
         fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
         lineHeight = 20.sp,
@@ -102,7 +102,7 @@ val GamerXTypography = Typography(
         color = TextPrimary,
     ),
     bodyLarge = TextStyle(
-        fontFamily = InterFamily,
+        fontFamily = ManropeFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 16.sp,
         lineHeight = 24.sp,
@@ -110,7 +110,7 @@ val GamerXTypography = Typography(
         color = TextPrimary,
     ),
     bodyMedium = TextStyle(
-        fontFamily = InterFamily,
+        fontFamily = ManropeFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
         lineHeight = 20.sp,
@@ -118,7 +118,7 @@ val GamerXTypography = Typography(
         color = TextSecondary,
     ),
     bodySmall = TextStyle(
-        fontFamily = InterFamily,
+        fontFamily = ManropeFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 12.sp,
         lineHeight = 16.sp,
@@ -126,7 +126,7 @@ val GamerXTypography = Typography(
         color = TextTertiary,
     ),
     labelLarge = TextStyle(
-        fontFamily = InterFamily,
+        fontFamily = SpaceGroteskFamily,
         fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
         lineHeight = 20.sp,
@@ -134,7 +134,7 @@ val GamerXTypography = Typography(
         color = TextPrimary,
     ),
     labelMedium = TextStyle(
-        fontFamily = InterFamily,
+        fontFamily = SpaceGroteskFamily,
         fontWeight = FontWeight.Medium,
         fontSize = 12.sp,
         lineHeight = 16.sp,
@@ -142,7 +142,7 @@ val GamerXTypography = Typography(
         color = TextSecondary,
     ),
     labelSmall = TextStyle(
-        fontFamily = InterFamily,
+        fontFamily = SpaceGroteskFamily,
         fontWeight = FontWeight.Medium,
         fontSize = 11.sp,
         lineHeight = 16.sp,

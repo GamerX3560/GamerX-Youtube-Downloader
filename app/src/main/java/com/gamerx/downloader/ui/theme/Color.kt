@@ -3,19 +3,19 @@ package com.gamerx.downloader.ui.theme
 import androidx.compose.ui.graphics.Color
 
 // ══════════════════════════════════════════════
-// DARK THEME — Classic dark with Cyan accent
+// DARK THEME (Synthetic Pulse) — Deep Void & Neon
 // ══════════════════════════════════════════════
-val DarkBackground = Color(0xFF0A0A0F)
-val DarkSurface = Color(0xFF12121A)
-val DarkSurfaceVariant = Color(0xFF1A1A25)
-val DarkSurfaceElevated = Color(0xFF1E1E2E)
-val DarkCard = Color(0xFF16161F)
-val DarkPrimary = Color(0xFF00E5FF)        // NeonCyan
-val DarkPrimaryDark = Color(0xFF00B8D4)
-val DarkPrimaryLight = Color(0xFF67FFFF)
-val DarkSecondary = Color(0xFFB388FF)      // ElectricPurple
-val DarkSecondaryDark = Color(0xFF7C4DFF)
-val DarkSecondaryLight = Color(0xFFE7B9FF)
+val DarkBackground = Color(0xFF0B0E14)
+val DarkSurface = Color(0xFF161A21)
+val DarkSurfaceVariant = Color(0xFF22262F)
+val DarkSurfaceElevated = Color(0xFF1C2028)
+val DarkCard = Color(0xFF1C2028)
+val DarkPrimary = Color(0xFF8FF5FF)        // NeonCyan
+val DarkPrimaryDark = Color(0xFF00DEEC)
+val DarkPrimaryLight = Color(0xFFBFFFFF)
+val DarkSecondary = Color(0xFFD674FF)      // ElectricPurple
+val DarkSecondaryDark = Color(0xFF9900CF)
+val DarkSecondaryLight = Color(0xFFF1C1FF)
 
 // ══════════════════════════════════════════════
 // AMOLED BLACK — Pure black, Neon Green accent

@@ -83,6 +83,7 @@ class YtDlpManager(private val context: Context) {
                 addOption("--dump-json")
                 addOption("--no-download")
                 addOption("--no-playlist")
+                addOption("--compat-options", "no-youtube-unavailable-videos")
                 addOption("--no-check-certificates")
                 addOption("--socket-timeout", "10")
                 addOption("--extractor-retries", "0")
@@ -150,12 +151,18 @@ class YtDlpManager(private val context: Context) {
                     }
                     DownloadType.Video -> {
                         if (item.format.formatId.isNotBlank()) {
-                            addOption("-f", "${item.format.formatId}+bestaudio/best")
+                            if (item.format.formatId.contains("+")) {
+                                addOption("-f", item.format.formatId)
+                            } else {
+                                addOption("-f", "${item.format.formatId}+bestaudio/best")
+                            }
                         } else {
-                            addOption("-f", "bestvideo+bestaudio/best")
+                            addOption("-f", "bestvideo*+bestaudio/best")
                         }
                         val container = item.container.ifBlank { "mp4" }
-                        addOption("--merge-output-format", container)
+                        if (container != "gif" && container != "Default") {
+                            addOption("--merge-output-format", container)
+                        }
                     }
                     DownloadType.Command -> {
                         // Custom command — extra commands are already set
@@ -272,8 +279,8 @@ class YtDlpManager(private val context: Context) {
                     formatNote = f.optString("format_note", ""),
                     ext = f.optString("ext", ""),
                     resolution = f.optString("resolution", ""),
-                    fileSize = f.optLong("filesize", 0L),
-                    fileSizeApprox = f.optLong("filesize_approx", 0L),
+                    fileSize = f.optDouble("filesize", 0.0).toLong(),
+                    fileSizeApprox = f.optDouble("filesize_approx", 0.0).toLong(),
                     tbr = f.optDouble("tbr", 0.0),
                     vcodec = vcodec,
                     acodec = acodec,

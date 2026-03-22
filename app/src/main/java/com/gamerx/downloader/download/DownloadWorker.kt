@@ -86,8 +86,13 @@ class DownloadWorker @AssistedInject constructor(
             val sbEnabled = settingsRepository.sponsorBlockEnabled.first()
             val sbCategories = if (sbEnabled) settingsRepository.sponsorBlockCategories.first() else null
 
+            val logFile = java.io.File(context.cacheDir, "logs/download_${item.id}.log")
+            logFile.parentFile?.mkdirs()
+            logFile.writeText("Starting download for ${item.title}\n")
+
             val result = ytDlpManager.download(item, cookieFile, sbCategories) { rawProgress, text, line ->
                 if (line != null) {
+                    try { logFile.appendText(line + "\n") } catch (_: Exception) {}
                     val prevStage = currentStage
                     currentStage = detectStage(line, currentStage)
 

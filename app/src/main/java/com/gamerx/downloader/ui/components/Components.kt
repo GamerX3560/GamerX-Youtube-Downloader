@@ -26,6 +26,11 @@ import com.gamerx.downloader.data.model.DownloadStatus
 import com.gamerx.downloader.data.model.DownloadType
 import com.gamerx.downloader.ui.theme.*
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.platform.LocalContext
+import java.io.File
+
 @Composable
 fun DownloadCard(
     item: DownloadEntity,
@@ -36,19 +41,62 @@ fun DownloadCard(
     onShare: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    var showLogs by remember { mutableStateOf(false) }
+    var logsText by remember { mutableStateOf("") }
+    val context = LocalContext.current
+
+    if (showLogs) {
+        LaunchedEffect(showLogs) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val logFile = File(context.cacheDir, "logs/download_${item.id}.log")
+                if (logFile.exists()) {
+                    logsText = try { logFile.readText() } catch (e: Exception) { "Error reading logs" }
+                } else {
+                    logsText = "No logs available."
+                }
+            }
+        }
+        AlertDialog(
+            onDismissRequest = { showLogs = false },
+            title = { Text("Download Logs") },
+            text = {
+                Box(modifier = Modifier.fillMaxHeight(0.6f)) {
+                    Text(
+                        text = logsText,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.verticalScroll(rememberScrollState())
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showLogs = false }) { Text("Close") }
+            }
+        )
+    }
+
     Card(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
+                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.05f)
+                        ),
+                        start = Offset(0f, 0f),
+                        end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
+                    )
+                )
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -256,6 +304,14 @@ fun DownloadCard(
             ) {
                 when (item.status) {
                     DownloadStatus.Active, DownloadStatus.Queued -> {
+                        IconButton(onClick = { showLogs = true }) {
+                            Icon(
+                                Icons.Outlined.ReceiptLong,
+                                contentDescription = "Logs",
+                                tint = NeonCyan,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
                         IconButton(onClick = onCancel) {
                             Icon(
                                 Icons.Filled.Close,
@@ -266,6 +322,14 @@ fun DownloadCard(
                         }
                     }
                     DownloadStatus.Error, DownloadStatus.Cancelled -> {
+                        IconButton(onClick = { showLogs = true }) {
+                            Icon(
+                                Icons.Outlined.ReceiptLong,
+                                contentDescription = "Logs",
+                                tint = NeonCyan,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
                         IconButton(onClick = onRetry) {
                             Icon(
                                 Icons.Filled.Refresh,
