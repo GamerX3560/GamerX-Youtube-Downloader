@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -399,6 +400,7 @@ fun SkeletonLoading() {
 
 // ── Main Content ──
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShareContent(
     state: ShareUiState,
@@ -421,21 +423,11 @@ fun ShareContent(
         elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
     ) {
         Column(
-            modifier = Modifier
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
-                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.05f)
-                        ),
-                        start = Offset(0f, 0f),
-                        end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
-                    )
-                )
-                .padding(20.dp),
+            modifier = Modifier.padding(0.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // Drag handle
+            Spacer(modifier = Modifier.height(12.dp))
             Box(
                 modifier = Modifier
                     .width(36.dp)
@@ -443,123 +435,97 @@ fun ShareContent(
                     .clip(RoundedCornerShape(2.dp))
                     .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
             )
-            Spacer(modifier = Modifier.height(16.dp))
 
             when {
-                state.isLoading -> SkeletonLoading()
+                state.isLoading -> {
+                    Column(modifier = Modifier.padding(20.dp)) { SkeletonLoading() }
+                }
 
                 state.error != null -> {
-                    Icon(
-                        Icons.Outlined.ErrorOutline,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        "Failed to resolve URL",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        state.error,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Spacer(modifier = Modifier.height(20.dp))
-                    Button(
-                        onClick = onClose,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                        shape = RoundedCornerShape(12.dp),
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("Close", color = MaterialTheme.colorScheme.onSurface)
+                        Icon(
+                            Icons.Outlined.ErrorOutline,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("Failed to resolve URL", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(state.error, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                        Spacer(modifier = Modifier.height(20.dp))
+                        Button(onClick = onClose, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                            Text("Close")
+                        }
                     }
                 }
 
                 state.videoInfo != null -> {
-                    val info = state.videoInfo
-
-                    Column(
+                    // ════════════════ HEADER ════════════════
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(1f, fill = false)
-                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // ── Top Header (YTDLnis exactly) ──
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    text = "Download",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    fontSize = 22.sp
-                                )
-                                Text(
-                                    text = "Adjust download",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Surface(
-                                    shape = RoundedCornerShape(20.dp),
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                    modifier = Modifier.size(40.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Outlined.AccessTime, 
-                                        contentDescription = "History",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(10.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Button(
-                                    onClick = onDownload,
-                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                                    shape = RoundedCornerShape(20.dp),
-                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
-                                    modifier = Modifier.height(40.dp)
-                                ) {
-                                    Icon(Icons.Outlined.Download, contentDescription=null, modifier = Modifier.size(16.dp), tint=MaterialTheme.colorScheme.onSurface)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Download", color = MaterialTheme.colorScheme.onSurface)
-                                }
-                            }
+                        Column {
+                            Text("Download", style = MaterialTheme.typography.headlineSmall, fontSize = 20.sp)
+                            Text("Configure download", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                        ElevatedButton(
+                            onClick = onDownload,
+                            colors = ButtonDefaults.elevatedButtonColors(),
+                        ) {
+                            Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("OK")
+                        }
+                    }
 
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        // ── Tabs ──
-                        val types = listOf(DownloadType.Audio, DownloadType.Video)
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            types.forEach { type ->
-                                val selected = type == state.selectedType
+                    // ════════════════ TAB ROW ════════════════
+                    val tabTitles = listOf("Audio", "Video", "Command")
+                    val selectedTabIndex = when (state.selectedType) {
+                        DownloadType.Audio -> 0
+                        DownloadType.Video -> 1
+                        else -> 1
+                    }
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp),
+                        ) {
+                            tabTitles.forEachIndexed { index, title ->
+                                val selected = selectedTabIndex == index
                                 Column(
                                     modifier = Modifier
-                                        .clickable { onTypeChange(type) }
-                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                        .weight(1f)
+                                        .clickable(enabled = index != 2) {
+                                            when (index) {
+                                                0 -> onTypeChange(DownloadType.Audio)
+                                                1 -> onTypeChange(DownloadType.Video)
+                                            }
+                                        }
+                                        .padding(vertical = 12.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Text(
-                                        text = type.name,
+                                        title,
+                                        color = when {
+                                            selected -> MaterialTheme.colorScheme.primary
+                                            index == 2 -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
                                     )
                                     if (selected) {
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Box(
                                             modifier = Modifier
-                                                .width(20.dp)
+                                                .width(40.dp)
                                                 .height(3.dp)
                                                 .clip(RoundedCornerShape(1.5.dp))
                                                 .background(MaterialTheme.colorScheme.primary)
@@ -567,84 +533,83 @@ fun ShareContent(
                                     }
                                 }
                             }
-                            // Stub for Command tab
-                            Column(
-                                modifier = Modifier
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = "Command",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.5f),
-                                )
-                            }
                         }
-                        
-                        HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant, thickness = 1.dp)
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    }
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                    // ════════════════ SCROLLABLE CONTENT ════════════════
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 10.dp)
+                    ) {
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                        // ── Title & Author Boxes ──
-                        OutlinedTextField(
+                        // ── Title ──
+                        TextField(
                             value = state.editedTitle,
                             onValueChange = onTitleChange,
                             label = { Text("Title") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant,
-                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                                unfocusedIndicatorColor = Color.Transparent,
                             ),
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp),
                         )
-                        
-                        Spacer(modifier = Modifier.height(12.dp))
-                        
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            OutlinedTextField(
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // ── Author + Container ──
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            TextField(
                                 value = state.editedAuthor,
                                 onValueChange = onAuthorChange,
                                 label = { Text("Author") },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant,
-                                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedIndicatorColor = Color.Transparent,
                                 ),
-                                shape = RoundedCornerShape(8.dp),
+                                shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp),
                             )
 
-                            // Container Dropdown
-                            Box(modifier = Modifier.weight(1f)) {
-                                val containers = if (state.selectedType == DownloadType.Video) {
-                                    listOf("mp4", "mkv", "webm")
-                                } else {
-                                    listOf("mp3", "m4a", "opus", "wav")
-                                }
-                                OutlinedTextField(
-                                    value = state.selectedContainer.ifBlank { "Default" },
+                            // Container ExposedDropdown
+                            val containers = if (state.selectedType == DownloadType.Video)
+                                listOf("mp4", "mkv", "webm") else listOf("mp3", "m4a", "opus", "wav")
+                            ExposedDropdownMenuBox(
+                                expanded = state.showContainerMenu,
+                                onExpandedChange = { onToggleFlag("containerMenu") },
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                TextField(
+                                    value = state.selectedContainer.uppercase().ifBlank { "Default" },
                                     onValueChange = {},
-                                    label = { Text("Container") },
                                     readOnly = true,
+                                    label = { Text("Container") },
                                     singleLine = true,
-                                    modifier = Modifier.fillMaxWidth().clickable { onToggleFlag("containerMenu") },
-                                    trailingIcon = {
-                                        Icon(Icons.Outlined.ArrowDropDown, contentDescription=null, modifier = Modifier.clickable { onToggleFlag("containerMenu") })
-                                    },
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                        unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant,
-                                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = state.showContainerMenu) },
+                                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                                        unfocusedIndicatorColor = Color.Transparent,
                                     ),
-                                    shape = RoundedCornerShape(8.dp),
+                                    shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp),
                                 )
-                                DropdownMenu(
+                                ExposedDropdownMenu(
                                     expanded = state.showContainerMenu,
                                     onDismissRequest = { onToggleFlag("containerMenu") },
                                 ) {
@@ -654,364 +619,343 @@ fun ShareContent(
                                             onClick = {
                                                 onContainerChange(c)
                                                 onToggleFlag("containerMenu")
-                                            }
+                                            },
                                         )
                                     }
                                 }
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                        // ── Video Quality ──
+                        // ── Video Quality Label ──
                         Text(
                             text = if (state.selectedType == DownloadType.Video) "Video quality" else "Audio quality",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-
-                            fontSize = 14.sp
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(vertical = 4.dp)
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        // Format display button (opens dialog)
-                        FormatRow(
+
+                        // ── Format Card (clickable, opens dialog) ──
+                        FormatCard(
                             format = state.selectedFormat,
-                            isSelected = true,
                             onClick = { onToggleFlag("formatDialog") }
                         )
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
                         // ── Save Dir ──
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text("Save dir", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(state.saveDir, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.fillMaxWidth())
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
+                        TextField(
+                            value = state.saveDir,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Save dir") },
+                            maxLines = 2,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                            ),
+                            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp),
+                        )
                         Text(
                             text = "Free space: ${state.freeSpace}",
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 4.dp)
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(horizontal = 10.dp)
                         )
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                        // ── Adjust Video Feature Grid ──
-                        Text(
-                            text = "Adjust video",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
+                        // ════════════════ ADJUST VIDEO ════════════════
+                        Text("Adjust video", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 4.dp))
 
-                            fontSize = 14.sp
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
+                        // Chip Row 1: Thumbnail, Chapters, Subtitles
+                        AdjustChipRow {
+                            AdjustChip("Thumbnail", Icons.Outlined.Image, state.thumbnailEnabled) { onToggleFlag("thumbnail") }
+                            AdjustChip("Chapters", Icons.Outlined.Book, state.chaptersEnabled) { onToggleFlag("chapters") }
+                            AdjustChip("Subtitles", Icons.Outlined.Subtitles, state.subtitlesEnabled) { onToggleFlag("subtitles") }
+                        }
+                        // Chip Row 2: Audio, Recode video, Live stream
+                        AdjustChipRow {
+                            AdjustChip("Audio", Icons.Outlined.MusicNote, false) { }
+                            AdjustChip("Recode video", Icons.Outlined.VideoSettings, false) { }
+                            AdjustChip("Live stream", Icons.Outlined.LiveTv, false) { }
+                        }
+                        // Chip Row 3: SponsorBlock, Filename template
+                        AdjustChipRow {
+                            AdjustChip("SponsorBlock", Icons.Outlined.AttachMoney, state.sponsorBlockEnabled) { onToggleFlag("sponsorblock") }
+                            AdjustChip("Filename template", Icons.Outlined.Edit, false) { }
+                        }
+                        // Chip Row 4: Extra commands, Cut
+                        AdjustChipRow {
+                            AdjustChip("Extra commands", Icons.Outlined.Terminal, false) { }
+                            AdjustChip("Cut", Icons.Outlined.ContentCut, false) { }
+                        }
 
-                        // Row 1
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            GridToggleButton("Thumbnail", Icons.Outlined.Image, state.thumbnailEnabled, onClick = { onToggleFlag("thumbnail") }, modifier = Modifier.weight(1f))
-                            GridToggleButton("Chapters", Icons.Outlined.MenuBook, state.chaptersEnabled, onClick = { onToggleFlag("chapters") }, badge = "1", modifier = Modifier.weight(1f))
-                            GridToggleButton("Subtitles", Icons.Outlined.Subtitles, state.subtitlesEnabled, onClick = { onToggleFlag("subtitles") }, badge = "1", modifier = Modifier.weight(1f))
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
+                    // ════════════════ BOTTOM BAR ════════════════
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        TextButton(
+                            onClick = {},
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp),
+                        ) {
+                            Icon(Icons.Outlined.Link, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = state.videoInfo.website.ifBlank { "Link" },
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        // Row 2
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            GridToggleButton("Audio", Icons.Outlined.MusicNote, false, onClick = { }, modifier = Modifier.weight(1f))
-                            GridToggleButton("Recode video", Icons.Outlined.SettingsApplications, false, onClick = { }, modifier = Modifier.weight(1f))
-                            GridToggleButton("Live stream", Icons.Outlined.LiveTv, false, onClick = { }, modifier = Modifier.weight(1f))
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        // Row 3
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            GridToggleButton("SponsorBlock", Icons.Outlined.AttachMoney, state.sponsorBlockEnabled, onClick = { onToggleFlag("sponsorblock") }, badge = "1", modifier = Modifier.weight(1.2f))
-                            GridToggleButton("Filename template", Icons.Outlined.Edit, false, onClick = { }, modifier = Modifier.weight(2f))
-                        }
-                        Spacer(modifier = Modifier.height(24.dp))
                     }
                 }
             }
 
-            // ── Interactive Format Selection Dialog ──
+            // ════════════════ FORMAT SELECTION DIALOG ════════════════
             if (state.showFormatDialog && state.videoInfo != null) {
                 val formats = if (state.selectedType == DownloadType.Video) {
                     state.videoInfo.videoFormats
                         .groupBy { "${it.resolution}-${it.fps.toInt()}-${it.ext}" }
-                        .map { (_, formatsInGroup) -> formatsInGroup.maxByOrNull { it.tbr } ?: formatsInGroup.first() }
-                        .sortedByDescending { it.resolution.substringBefore("x", "0").toIntOrNull() ?: it.tbr.toInt() }
+                        .map { (_, g) -> g.maxByOrNull { it.tbr } ?: g.first() }
+                        .sortedByDescending { it.resolution.substringAfter("x", "0").toIntOrNull() ?: it.tbr.toInt() }
                 } else {
                     state.videoInfo.audioFormats.sortedByDescending { it.tbr }
                 }
 
-                androidx.compose.material3.AlertDialog(
+                AlertDialog(
                     onDismissRequest = { onToggleFlag("formatDialog") },
                     title = {
-                        Text("Format Selection", style = MaterialTheme.typography.titleMedium)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("Format", style = MaterialTheme.typography.titleMedium)
+                                Text("Select format", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Row {
+                                IconButton(onClick = {}) {
+                                    Icon(Icons.Outlined.Sort, contentDescription = "Sort")
+                                }
+                                TextButton(onClick = { onToggleFlag("formatDialog") }) {
+                                    Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("OK")
+                                }
+                            }
+                        }
                     },
                     text = {
-                        LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                            item {
-                                FormatRow(
-                                    format = null,
-                                    isSelected = state.selectedFormat == null,
-                                    onClick = {
+                        Column {
+                            Text(
+                                text = if (state.selectedType == DownloadType.Video) "Video" else "Audio",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 500.dp)) {
+                                item {
+                                    FormatCard(format = null, isSelected = state.selectedFormat == null, onClick = {
                                         onFormatChange(null)
                                         onToggleFlag("formatDialog")
-                                    }
-                                )
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.surfaceVariant)
-                            }
-                            items(formats) { format ->
-                                FormatRow(
-                                    format = format,
-                                    isSelected = format == state.selectedFormat,
-                                    onClick = {
+                                    })
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                }
+                                items(formats) { format ->
+                                    FormatCard(format = format, isSelected = format == state.selectedFormat, onClick = {
                                         onFormatChange(format)
                                         onToggleFlag("formatDialog")
-                                    }
-                                )
+                                    })
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                }
                             }
                         }
                     },
-                    confirmButton = {
-                        TextButton(onClick = { onToggleFlag("formatDialog") }) {
-                            Text("OK")
-                        }
-                    },
+                    confirmButton = {},
                     containerColor = MaterialTheme.colorScheme.surface,
-                    textContentColor = MaterialTheme.colorScheme.onSurface
+                    modifier = Modifier.fillMaxWidth().padding(4.dp),
                 )
             }
         }
     }
 }
 
-// ── Shared UI Grid Items ──
+// ════════════════════════════════════════════════
+// ── Adjust Chip Composables (horizontal scroll) ──
+// ════════════════════════════════════════════════
 
 @Composable
-fun GridToggleButton(
-    text: String,
+fun AdjustChipRow(content: @Composable RowScope.() -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        content = content,
+    )
+}
+
+@Composable
+fun AdjustChip(
+    label: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     isEnabled: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    badge: String? = null
 ) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = if (isEnabled) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant,
-        modifier = modifier.clickable(onClick = onClick)
-    ) {
-        Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 10.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(
-                    icon,
-                    contentDescription = null,
-                    modifier = Modifier.size(14.dp),
-                    tint = if (isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = text,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = if (isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    lineHeight = 12.sp
-                )
-            }
-            if (badge != null) {
-                Surface(
-                    shape = androidx.compose.foundation.shape.CircleShape,
-                    color = MaterialTheme.colorScheme.background,
-                    modifier = Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-8).dp)
-                ) {
-                    Text(
-                        text = badge,
-                        fontSize = 8.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 4.dp)
-                    )
-                }
-            }
-        }
-    }
+    FilterChip(
+        selected = isEnabled,
+        onClick = onClick,
+        label = { Text(label, maxLines = 1) },
+        leadingIcon = {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+        },
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        ),
+        elevation = FilterChipDefaults.filterChipElevation(elevation = 2.dp),
+    )
 }
 
-// ── Format Row ──
+// ════════════════════════════════════════════════
+// ── Format Card (YTDLnis format_item exact clone) ──
+// ════════════════════════════════════════════════
 
 @Composable
-fun FormatRow(
+fun FormatCard(
     format: FormatInfo?,
-    isSelected: Boolean,
+    isSelected: Boolean = false,
     onClick: () -> Unit,
 ) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent,
+        shape = RoundedCornerShape(12.dp),
+        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else Color.Transparent,
+        tonalElevation = if (isSelected) 2.dp else 0.dp,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+            modifier = Modifier.padding(vertical = 5.dp, horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            RadioButton(
-                selected = isSelected,
-                onClick = onClick,
-                modifier = Modifier.size(20.dp),
-                colors = RadioButtonDefaults.colors(
-                    selectedColor = MaterialTheme.colorScheme.primary,
-                    unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                ),
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            
             if (format == null) {
-                // Auto format
+                // ── Auto Best ──
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(60.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("BEST", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary, fontSize = 14.sp)
+                    }
+                }
+                Spacer(modifier = Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Best Quality (Auto)",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        text = "yt-dlp selects optimal format",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Text("Best Quality (Auto)", style = MaterialTheme.typography.titleMedium, fontSize = 20.sp, maxLines = 2)
+                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        FormatPill("auto", MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
+                    }
                 }
             } else {
-                // Codec/Ext badge on the left (like YTDLnis solid blue badge)
+                // ── Ext Badge (60dp, like YTDLnis) ──
                 Surface(
-                    shape = RoundedCornerShape(6.dp),
+                    shape = RoundedCornerShape(10.dp),
                     color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(60.dp),
                 ) {
-                    Text(
-                        text = format.ext.uppercase(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        fontWeight = FontWeight.Bold
-                    )
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(format.ext.uppercase(), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
+                    }
                 }
-                
-                Spacer(modifier = Modifier.width(12.dp))
-                
+                Spacer(modifier = Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    // Title row — YTDLnis style: "1080P60 (1920X1080)"
+                    // Format note: "1080P60 (1920X1080)"
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        val title = buildString {
-                            // Convert "1920x1080" -> height "1080", append P and fps
+                        val note = buildString {
                             val res = format.resolution
                             val height = res.substringAfter("x", "").ifBlank { res.filter { it.isDigit() } }
                             if (height.isNotBlank()) {
                                 append("${height}P")
                                 if (format.fps > 0) append("${format.fps.toInt()}")
                                 append(" (${res.uppercase()})")
-                            } else if (format.formatNote.isNotBlank()) {
-                                append(format.formatNote)
                             } else {
-                                append("Audio")
+                                append(format.formatNote.ifBlank { "Audio" })
                             }
                         }
-                        
                         Text(
-                            text = title,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
+                            text = note,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontSize = 20.sp,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
                         )
-                        
-                        Spacer(modifier = Modifier.width(8.dp))
-                        
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "id: ${format.formatId}",
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
                         )
                     }
-                    
-                    Spacer(modifier = Modifier.height(6.dp))
-                    
-                    // Detail pills row
+                    Spacer(modifier = Modifier.height(4.dp))
+                    // Pills row (horizontally scrollable)
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
                     ) {
-                        // Audio pill
-                        if (!format.isAudioOnly && !format.isVideoOnly) {
-                             Surface(
-                                 shape = RoundedCornerShape(4.dp),
-                                 color = MaterialTheme.colorScheme.primary.copy(alpha=0.15f)
-                             ) {
-                                 Row(modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                                     Icon(Icons.Outlined.MusicNote, contentDescription=null, modifier = Modifier.size(12.dp), tint=MaterialTheme.colorScheme.primary)
-                                     Spacer(modifier = Modifier.width(2.dp))
-                                     Text(if (format.acodec != "none") format.acodec else "audio", style = MaterialTheme.typography.bodySmall, fontSize = 9.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
-                                 }
-                             }
+                        // Audio codec pill
+                        if (!format.isAudioOnly && !format.isVideoOnly && format.acodec != "none") {
+                            FormatPill("♪ ${format.acodec}", MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
                         }
-                        
                         // Video codec pill
                         val codec = if (format.isAudioOnly || format.vcodec == "none") format.acodec else format.vcodec
                         if (codec.isNotBlank() && codec != "none") {
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant
-                            ) {
-                                Text(
-                                    text = codec,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontSize = 9.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
+                            FormatPill(codec, MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.onSecondary)
                         }
-                        
-                        Spacer(modifier = Modifier.weight(1f))
-                        
-                        // Size pill
+                        // File size pill
                         if (format.displaySize.isNotBlank() && format.displaySize != "Unknown") {
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = MaterialTheme.colorScheme.secondary.copy(alpha=0.2f)
-                            ) {
-                                Text(
-                                    text = format.displaySize,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.secondary,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                            FormatPill(format.displaySize, MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.onSecondary)
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+fun FormatPill(text: String, bg: Color, fg: Color) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = bg,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = fg,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+            maxLines = 1,
+        )
     }
 }
